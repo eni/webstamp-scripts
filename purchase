@@ -16,7 +16,7 @@ OUTPUT="webstamp.pdf"
 while [ $# -gt 0 ]
 do
     case "$1" in
-		-t|--type)		WS_TYPE=`echo "${2^^}"`; shift;;
+		-t|--type)	WS_TYPE=`echo "${2^^}"`; shift;;
 		-n|--number)	WS_NUM=$2; shift;;
 		-p|--position)	WS_POS=`echo "${2^^}"`; shift;;
 		-m|--mediasize)	WS_MEDIUMSIZE_RAW=$2; shift;;
