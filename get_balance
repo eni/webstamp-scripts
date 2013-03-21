@@ -1,0 +1,12 @@
+#!/bin/bash
+#
+# get balance from webstamp v0.1
+# 2013-02: initial release
+# usage:
+# ./get_balance
+# (./login needs to be runned first)
+# (c) 2013 by cyrill von wattenwyl
+#
+
+URL="https://ws.sso.post.ch/members/"
+curl -L -c cc -b cc $URL -s | grep -1 Guthaben | cut -d">" -f2 | tail -n1 | cut -d"<" -f1

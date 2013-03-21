@@ -1,0 +1,138 @@
+#!/bin/bash
+#
+# purchase stamps from swisspost v0.1
+# 2013-02: initial release
+# usage:
+# ./purchase -t A|B -n number -p L|R|U [-m nxm] [-s nxm] [-o output-filename] 
+# (./login needs to be runned first)
+# (c) 2013 by cyrill von wattenwyl
+#
+
+
+set -- `getopt -o t:n:p:m:s:o: -l "type: number: position: mediumsize: stamppos: output:" -n "purchase" "h" "$@"` || usage
+[ $# -eq 0 ] && usage
+
+OUTPUT="webstamp.pdf"
+while [ $# -gt 0 ]
+do
+    case "$1" in
+		-t|--type)		WS_TYPE=`echo "${2^^}"`; shift;;
+		-n|--number)	WS_NUM=$2; shift;;
+		-p|--position)	WS_POS=`echo "${2^^}"`; shift;;
+		-m|--mediasize)	WS_MEDIUMSIZE_RAW=$2; shift;;
+		-s|--stamppos)	WS_STAMPPOS_RAW=$2; shift;;
+		-o|--output)	OUTPUT=`echo $2 | cut -d"'" -f2`; shift;;
+		--)	shift; break;;
+	esac
+	shift
+done
+
+#check type (needs to be A or B)
+VALID="'A' 'B'"
+TYPE_VALID=n
+case "${VALID[@]}" in  *"$WS_TYPE"*) 
+	TYPE_VALID=y
+	case $WS_TYPE in
+		"'A'")	PROD_ID="9542"; shift;;
+		"'B'")	PROD_ID="9557"; shift;;
+	esac
+esac
+if [ -z $WS_TYPE ]; then TYPE_VALID=n; fi
+if [ $TYPE_VALID = n ]; then
+	echo "-t or --type needs to be A or B"
+	exit 1
+fi
+
+#position (needs to be L, R or U)
+VALID="'L' 'R' 'U'"
+POS_VALID=n
+MEDIA_ID=0
+case "${VALID[@]}" in  *"$WS_POS"*) 
+	POS_VALID=y
+	case $WS_POS in
+		"'L'")	
+			MEDIA_ID="106"; 
+			WIDTH=210
+			HEIGHT=296
+			LEFT=15
+			TOP=41
+			shift;;
+		"'R'")	
+			MEDIA_ID="107"; 
+			WIDTH=210
+			HEIGHT=296
+			LEFT=110
+			TOP=41
+			shift;;
+		"'U'")	MEDIA_ID="userdefined"; shift;;
+	esac
+esac
+if [ -z $WS_POS ]; then POS_VALID=n; fi
+if [ $POS_VALID = n ]; then
+	echo "-p or --position needs to be L, R or U"
+	exit 1
+fi
+
+#number of stamps
+COUNT=`echo $WS_NUM | cut -d"'" -f2`
+case $COUNT in
+    ''|*[!0-9]*) NUMBER_VALID=n ;;
+    *) NUMBER_VALID=y ;;
+esac
+if [ $NUMBER_VALID = n ]; then
+	echo "-n or --number needs to be an integer value"
+	exit 1
+fi
+
+#mediasize and position
+if [ $MEDIA_ID = "userdefined" ]; then
+	WIDTH=`echo $WS_MEDIUMSIZE_RAW | cut -d"'" -f2 | cut -d'x' -f1`
+	HEIGHT=`echo $WS_MEDIUMSIZE_RAW | cut -d"'" -f2 | cut -d'x' -f2 `
+	LEFT=`echo $WS_STAMPPOS_RAW | cut -d"'" -f2 | cut -d'x' -f1` 
+	TOP=`echo $WS_STAMPPOS_RAW | cut -d"'" -f2 | cut -d'x' -f2` 
+	USERPOS_VALID=n
+	case $WIDTH in
+		''|*[!0-9]*) USERPOS_VALID=n ;;
+		*) USERPOS_VALID=y ;;
+	esac
+	case $HEIGHT in
+		''|*[!0-9]*) USERPOS_VALID=n ;;
+		*) USERPOS_VALID=y ;;
+	esac
+	case $LEFT in
+		''|*[!0-9]*) USERPOS_VALID=n ;;
+		*) USERPOS_VALID=y ;;
+	esac
+	case $TOP in
+		''|*[!0-9]*) USERPOS_VALID=n ;;
+		*) USERPOS_VALID=y ;;
+	esac
+	
+	if [ $USERPOS_VALID = n ]; then
+		echo -e "-m or --mediasize / -s or --stamppos user defined positions not correct. example:\n-m 210x225 -s 110x41"
+		exit 1
+	fi
+fi
+
+#end of checking args, now every variable should be clean
+echo "1/5"
+URL="https://ws.sso.post.ch/members/?_step=2&_new_order=1"
+curl -L -c cc -b cc $URL > /dev/null 2>&1
+
+echo "2/5"
+URL="https://ws.sso.post.ch/members/?_step=3&_media_type_id=3&_product_id=$PROD_ID"
+curl -L -c cc -b cc $URL > /dev/null 2>&1
+
+echo "3/5"
+URL="https://ws.sso.post.ch/members/"
+DATA="_step=6&_pstep=5&_base_system_media_id=101&_zone_width=210&_zone_height=296&_edit=0&_license_id=s%7C1if&_items=$COUNT&_system_media_id=$MEDIA_ID&format_width=$WIDTH&format_height=$HEIGHT&zone_x=$LEFT&zone_y=$TOP&_product_id=$PROD_ID"
+REQ=$URL?$DATA
+curl -L -c cc -b cc $REQ > /dev/null 2>&1
+
+echo "4/5"
+URL="https://ws.sso.post.ch/members/?_step=8"
+curl -L -c cc -b cc $URL > /tmp/ws-purchased 2>&1
+
+echo "5/5"
+DL_URL=https://ws.sso.post.ch/members/`cat /tmp/ws-purchased | grep download_path | cut -d"'" -f2`
+curl -L -c cc -b cc -o $OUTPUT $DL_URL 2>&1

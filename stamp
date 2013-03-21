@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+# stamping letters with webstamp from swisspost v0.2
+# 2013-02: improvents
+# 2012-12: initial release
+# usage:
+# ./stamp document.pdf[input] ws-file[ws-file] 
+# (c) 2013 by cyrill von wattenwyl
+#
+
+# check args
+if [ -z "$1" ]; then
+	echo "usage ./stamp DOCUMENT STAMP"
+	exit 1
+fi;
+if [ -z "$2" ]; then
+	echo "usage ./stamp DOCUMENT STAMP"
+	exit 1
+fi;
+
+# how much pages has the given pdf?
+NUMBER_OF_PAGES=`pdftk $1 dump_data | grep NumberOfPages | cut -d" " -f2`
+echo $NUMBER_OF_PAGES
+#if longer than 1 site
+if [ "$NUMBER_OF_PAGES" -ge "2" ]; then
+	pdftk $1 cat 1 output - | pdftk - stamp /tmp/tstamp.pdf output - | pdftk A=- B=$1 cat A1 B2-end output /tmp/ws-stamp-tmp
+#just one site
+else
+	pdftk $1 cat 1 output - | pdftk - stamp /tmp/tstamp.pdf output /tmp/ws-stamp-tmp
+fi;
+
+#move original file
+_OFN=`basename $1 .pdf`
+_ODN=`dirname $1`
+mv $1 $_ODN/$_OFN.orig.pdf
+mv /tmp/ws-stamp-tmp $1
