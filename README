@@ -33,7 +33,7 @@ CHF 8.85
 --> purchases a stamp
 -t	--type		type of stamp: A (a-post) or B (b-post)
 -n	--number	number of stamps
--p 	--postion	position of stamp: L (left) R (right) U (user defined)
+-p 	--position	position of stamp: L (left) R (right) U (user defined)
 -m	--mediasize	size of media in mm HEIGHTxWIDTH, example 210x296
 -s	--stamppos	position of stamp in mm LEFTxTOP, example 110x41
 -o	--output	output file name
