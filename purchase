@@ -9,6 +9,8 @@
 #
 
 
+USER_AGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36"
+
 set -- `getopt -o t:n:p:m:s:o: -l "type: number: position: mediumsize: stamppos: output:" -n "purchase" "h" "$@"` || usage
 [ $# -eq 0 ] && usage
 
@@ -114,18 +116,23 @@ if [ $MEDIA_ID = "userdefined" ]; then
 	fi
 fi
 
+
+SESSID=$(cat cc | cut -f7 | tail -n1)
+echo $SESSID
 #end of checking args, now every variable should be clean
 echo "1/5"
-URL="https://ws.sso.post.ch/members/?_step=2&_new_order=1"
-curl -L -c cc -b cc $URL > /dev/null 2>&1
+URL="https://ws.sso.post.ch/members/?_step=2&members_sessid=$SESSID"
+curl -L -A "$USER_AGENT" -c cc -b cc $URL 
+
+exit 0
 
 echo "2/5"
-URL="https://ws.sso.post.ch/members/?_step=3&_media_type_id=3&_product_id=$PROD_ID"
+URL="https://ws.sso.post.ch/members/?_step=3&_media_type_id=3&_product_id=$PROD_ID&members_sessid=$SESSID"
 curl -L -c cc -b cc $URL > /dev/null 2>&1
 
 echo "3/5"
 URL="https://ws.sso.post.ch/members/"
-DATA="_step=6&_pstep=5&_base_system_media_id=101&_zone_width=210&_zone_height=296&_edit=0&_license_id=s%7C1if&_items=$COUNT&_system_media_id=$MEDIA_ID&format_width=$WIDTH&format_height=$HEIGHT&zone_x=$LEFT&zone_y=$TOP&_product_id=$PROD_ID"
+DATA="_step=6&_pstep=5&_base_system_media_id=101&_zone_width=210&_zone_height=296&_edit=0&_license_id=s%7C1if&_items=$COUNT&_system_media_id=$MEDIA_ID&format_width=$WIDTH&format_height=$HEIGHT&zone_x=$LEFT&zone_y=$TOP&_product_id=$PROD_ID&members_sessid=$SESSID"
 REQ=$URL?$DATA
 curl -L -c cc -b cc $REQ > /dev/null 2>&1
 
