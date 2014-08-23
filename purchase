@@ -2,6 +2,8 @@
 #
 # purchase stamps from swisspost v0.1
 # 2013-02: initial release
+# 2014-08: make purchase work again
+
 # usage:
 # ./purchase -t A|B -n number -p L|R|U [-m nxm] [-s nxm] [-o output-filename] 
 # (./login needs to be runned first)
@@ -35,8 +37,14 @@ TYPE_VALID=n
 case "${VALID[@]}" in  *"$WS_TYPE"*) 
 	TYPE_VALID=y
 	case $WS_TYPE in
-		"'A'")	PROD_ID="9542"; shift;;
-		"'B'")	PROD_ID="9557"; shift;;
+		"'A'")	
+			PROD_ID="14254";
+			DELIVERY="A-Post"; 
+			shift;;
+		"'B'")	
+			PROD_ID="14269"; 
+			DELIVERY="B-Post";
+			shift;;
 	esac
 esac
 if [ -z $WS_TYPE ]; then TYPE_VALID=n; fi
@@ -118,28 +126,51 @@ fi
 
 
 SESSID=$(cat cc | cut -f7 | tail -n1)
-echo $SESSID
 #end of checking args, now every variable should be clean
+
+# getting right cookie
 echo "1/5"
 URL="https://ws.sso.post.ch/members/?_step=2&members_sessid=$SESSID"
-curl -L -A "$USER_AGENT" -c cc -b cc $URL 
+curl -L -A "$USER_AGENT" -c cc -b cc $URL  > /dev/null 2>&1
 
-exit 0
 
+# step 2
 echo "2/5"
-URL="https://ws.sso.post.ch/members/?_step=3&_media_type_id=3&_product_id=$PROD_ID&members_sessid=$SESSID"
-curl -L -c cc -b cc $URL > /dev/null 2>&1
-
-echo "3/5"
+DEFAULT_DATA="_step=3&_pstep=2&_back=&product_group=Brief%A0Inland&format=Standardbrief&zone=null&_media_type_id=3&_option_recipientaddress=0"
+DATA="$DEFAULT_DATA&delivery=$DELIVERY&_product_id=$PROD_ID"
 URL="https://ws.sso.post.ch/members/"
-DATA="_step=6&_pstep=5&_base_system_media_id=101&_zone_width=210&_zone_height=296&_edit=0&_license_id=s%7C1if&_items=$COUNT&_system_media_id=$MEDIA_ID&format_width=$WIDTH&format_height=$HEIGHT&zone_x=$LEFT&zone_y=$TOP&_product_id=$PROD_ID&members_sessid=$SESSID"
-REQ=$URL?$DATA
-curl -L -c cc -b cc $REQ > /dev/null 2>&1
+curl -L -A "$USER_AGENT" -c cc -b cc -d $DATA $URL > /tmp/ws-token04 2>/dev/null
 
+
+# step 3
+echo "3/5"
+ADRESS_ID=$(cat /tmp/ws-token04 | grep 'sender_addresses=\[\[' | cut -d'[' -f3 | cut -d',' -f1)
+DEFAULT_DATA="_step=6&_pstep=5&_back=&_save=&_cm=&_base_system_media_id=101&_edit=0&_order_comment=&_license_id=s%7C1&_base_user_media_id="
+DATA="$DEFAULT_DATA&_items=$COUNT&_sender_address_id=$ADRESS_ID&_zone_width=$WIDTH&_zone_height=$HEIGHT&_system_media_id=$MEDIA_ID&zone_x=$LEFT&zone_y=$TOP"
+curl -L -A "$USER_AGENT" -c cc -b cc -d $DATA $URL > /dev/null 2>&1
+
+
+# step 4 / 5
 echo "4/5"
 URL="https://ws.sso.post.ch/members/?_step=8"
-curl -L -c cc -b cc $URL > /tmp/ws-purchased 2>&1
+curl -L -A "$USER_AGENT" -c cc -b cc  $URL > /tmp/ws-token05 2>/dev/null
+echo "4.1/5"
+URL="https://ws.sso.post.ch/members/?_step=8.1&_remote=1"
+curl -L -A "$USER_AGENT" -c cc -b cc  $URL > /dev/null 2>&1
+echo "4.2/5"
+URL="https://ws.sso.post.ch/members/?_step=8.4&_jsrc_slot=0&_jsrc_mode=2"
+curl -L -A "$USER_AGENT" -c cc -b cc  $URL > /dev/null 2>&1
 
+# download pdf
 echo "5/5"
-DL_URL=https://ws.sso.post.ch/members/`cat /tmp/ws-purchased | grep download_path | cut -d"'" -f2`
-curl -L -c cc -b cc -o $OUTPUT $DL_URL 2>&1
+PDFFILE=$(cat /tmp/ws-token05 | grep download_path | cut -d'=' -f2 | sed "s/'//g" | sed 's/;//g' | cut -d'/' -f5)
+DOWNLOAD_PATH="https://ws.sso.post.ch/download/stamps/members/$PDFFILE"
+sleep 3
+curl -L -A "$USER_AGENT" -c cc -b cc -o "$OUTPUT" "$DOWNLOAD_PATH" 2>&1
+
+
+# remove temporary tokens
+rm /tmp/ws-token04 /tmp/ws-token05
+exit 0;
+
+
